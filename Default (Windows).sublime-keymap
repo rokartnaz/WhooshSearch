@@ -1,0 +1,4 @@
+[
+    { "keys": ["ctrl+shift+i"], "command": "whoosh_index" },
+    { "keys": ["ctrl+shift+w"], "command": "whoosh_search" }
+]

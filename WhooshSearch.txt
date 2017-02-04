@@ -1,0 +1,68 @@
+1) Fast access menu to build index, delete index, start different types of search
+2) Input window: 
+    - [default] case sensitive partial words enabled
+    - case-insensitive partial words  @ 
+    - case-sesitive whole words       #
+    - case-insensitive whole words    $
+    - regexp                          %
+    - fuzzy search                    &
+3) key bindings for everything
+4) any change of project - rebuild index (manual or automatic)
+5) view with clickable results -> open file for neccessary position
+
+
+Use cases:
+
+INDEXER:
+
+0) auto option enable:
+    create/update index
+
+1) auto option disable:
+    nothing
+
+2) Open Sublime:
+    - auto 1: create/update index if project exists
+    - auto 0: nothing
+
+3) Save document:
+    - auto 1: index created/updated if current document is within project
+    - auto 0: nothing
+
+4) Rename document:
+    - auto 1: index created/updated if current document belongs project
+    - auto 0: nothing
+
+5) Create document:
+    --//--
+
+6) Delete document:
+    --//--
+
+7) Add folder:
+    --//--
+
+8) Save project as:
+    --//--
+
+9)
+
+SUBLIME:
+
+0) Start search: binding
+1) Start search: Command Pallete
+2) Receive view with clickable results
+
+
+
+TODO:
+test my_function123
+1) new_index creates new index in side directory, move it to target after it
+2) new index uses calculate project files
+    - if there is no index
+    - if there is a settings change
+3) incremental index otherwise
+4) on save: micro index.
+5) new command reset project_files + incremental_index
+
+

@@ -1,0 +1,16 @@
+{
+    "skip_folders":
+    [
+        ".svn",
+        ".git",
+        ".hg",
+        "CVS",
+        "CMpub",
+        "linux30",
+        "linux50"
+    ],
+    "skip_file_extensions":
+    [
+        "txt"
+    ]
+}
