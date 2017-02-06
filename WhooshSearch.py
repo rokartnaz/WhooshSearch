@@ -25,8 +25,9 @@ from itertools import groupby
 _index_folder_tag = ".whoosh"
 _whoosh_search_settings = "WhooshSearch.sublime-settings"
 _settings = None
-_whoosh_view_id = 4294967295
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
+_whoosh_view = None
+_project_files = []
 
 def custom_analyzer():
     delims = u("_- '\"()!@#$%^&*[]{}<>\|;:,./?`~=+")
@@ -143,8 +144,9 @@ def is_binary_file(file_path):
 
 #get list of all files in project that we are going to index
 #TODO return dictionary for quick search
-def project_files():
-    all_files = []
+def calculate_project_files():
+    global _project_files
+    future_project_files = []
 
     for folder in project_folders():
         folder_files = []
@@ -156,31 +158,28 @@ def project_files():
                 if file_filter(fname):
                     folder_files.append(fname)
 
-        all_files.extend(folder_files)
+        future_project_files.extend(folder_files)
 
-    print("artemn: project_files: %d" % len(all_files))
+    print("artemn: project_files: %d" % len(future_project_files))
+    _project_files = future_project_files
 
-    return all_files
+    return _project_files
 
 
-def artemn_project_files():
-    all_files = []
-    count = 0
+def project_files_number():
+    return len(_project_files)
 
-    for folder in project_folders():
-        for (dirpath, dirnames, filenames) in os.walk(folder, topdown=True):
-            dirnames[:] = [d for d in dirnames if dir_filter(d)]
 
-            for f in filenames:
-                fname = os.path.join(dirpath, f)
-                # if file_filter(fname):
-                count += 1
+def read_project_files_txt():
+    if not os.path.exists(_whoosh_project_files_txt):
+        return []
 
-        #all_files.extend(folder_files)
+    files = [line.rstrip('\n') for line in open(_whoosh_project_files_txt)]
+    return files
 
-    print("artemn: project_files: %d" % count)
 
-    return all_files
+def project_files():
+    return calculate_project_files()
 
 
 def prepare_index_folder():
@@ -255,7 +254,7 @@ def incremental_index(index_path):
     return ix
 
 
-def display_search_results(whoosh_view, row_col, file_path, fragments):
+def display_search_results(whoosh_view, file_path, fragments):
      print("display_row_col")
 
 
@@ -413,7 +412,6 @@ def whoosh_index():
 
 def whoosh_search(search_string):
     start = timeit.default_timer()
-    print("ARTEMN!!!!!!!!!")
 
     if not is_project():
         print("WhooshSearch searches only projects")
@@ -431,7 +429,7 @@ def whoosh_search(search_string):
 
     with ix.searcher() as searcher:
         hits = searcher.search(q, limit=None, terms=True)
-        show_hits(hits)
+        show_hits(hits, search_string)
 
     stop = timeit.default_timer()
     print(stop - start)
@@ -444,25 +442,58 @@ def setup_hits(hits):
     hits.formatter = CustomFormatter()
 
 
-def create_whoosh_view():
-    whoosh_view = sublime.active_window().new_file()
-    whoosh_view.set_scratch(True)
-    whoosh_view.set_name("Whoosh Find Results")
-    whoosh_view.set_syntax_file(_whoosh_syntax_file)
-    #whoosh_view.set_read_only(True)
+def open_whoosh_view():
+    global _whoosh_view
+    view_index = sublime.active_window().get_view_index(_whoosh_view)
+
+    if view_index[0] != -1:
+        sublime.active_window().focus_view(_whoosh_view)
+        _whoosh_view.show(_whoosh_view.size())
+        return _whoosh_view
+
+    _whoosh_view = sublime.active_window().new_file()
+    _whoosh_view.set_scratch(True)
+    _whoosh_view.set_name("Whoosh Find Results")
+    _whoosh_view.set_syntax_file(_whoosh_syntax_file)
+    #_whoosh_view.set_read_only(True)
+    return _whoosh_view
 
 
-def show_hits(hits):
-    print("ARTEMN %d" % len(hits))
+def display_filepath(filepath):
+    _whoosh_view.run_command("view_append_text", 
+                             {"text" : "%s:\n" % filepath, "search_string" : None})
 
+
+def display_fragments(fragments, search_string):
+    line_count_start = 0
+    line_count = 0
+    for fragment in fragments:
+        line_count += fragment.text.count('\n', line_count_start, fragment.startchar)
+        text = '%8d:\t' % (line_count + 1)
+        text += fragment.text[fragment.startchar : fragment.endchar] + '\n';
+        line_count_start = fragment.startchar
+        _whoosh_view.run_command("view_append_text", 
+                                 {"text" : text, "search_string" : search_string})
+
+
+def display_header(file_number, search_string):
+    header = 'Searching %d files for "%s"\n\n' % (file_number, search_string)
+    _whoosh_view.run_command("view_append_text",
+                             {"text" : header, "search_string" : search_string})
+
+
+def show_hits(hits, search_string):
     setup_hits(hits)
-    whoosh_view = create_whoosh_view()
+    open_whoosh_view()
 
-    row_col = (0, 0)
+    display_header(project_files_number(), search_string)
+
     for hit in hits:
         content = file_content(hit["path"])
         fragments = hit.highlights("content", text=content, top=1)
-        row_col = display_search_results(whoosh_view, row_col, hit["path"], fragments)
+        display_filepath(hit["path"])
+        display_fragments(fragments, search_string)
+
 
 ###############################################################################
 
@@ -481,6 +512,17 @@ class WhooshResetCommand(sublime_plugin.TextCommand):
         sublime.set_timeout_async(whoosh_reset, 1)
 
 
+class ViewAppendTextCommand(sublime_plugin.TextCommand):
+    def run(self, edit, text, search_string):
+        start_point = self.view.size()
+        self.view.insert(edit, start_point, text)
+
+        if search_string is not None:
+            regions = self.view.find_all(search_string,
+                                    sublime.LITERAL | sublime.IGNORECASE)
+            self.view.add_regions('whoosh_regions', regions, "text.find-in-files", "", sublime.DRAW_OUTLINED)
+
+
 class WhooshTestCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         global _settings
@@ -488,12 +530,7 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
         _settings = sublime.load_settings(_whoosh_search_settings)
         start = timeit.default_timer()
 
-        qp = QueryParser("content", schema=get_schema())
-
-        # Search for phrases. search_string should to be in quotes
-        search_string = "my_function artemn"
-        q = qp.parse('"%s"' % search_string)
-        print(q)
+        print(_whoosh_view.size())
 
         stop = timeit.default_timer()
         print(stop - start)
