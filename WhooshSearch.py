@@ -147,6 +147,7 @@ def is_binary_file(file_path):
 def calculate_project_files():
     global _project_files
     future_project_files = []
+    file_count = 0
 
     for folder in project_folders():
         folder_files = []
@@ -157,6 +158,9 @@ def calculate_project_files():
                 fname = os.path.join(dirpath, f)
                 if file_filter(fname):
                     folder_files.append(fname)
+                    file_count += 1
+                    if file_count % 100 == 0:
+                        sublime.active_window().status_message("Whoosh Collecting: %d" % file_count)
 
         future_project_files.extend(folder_files)
 
@@ -208,8 +212,13 @@ def add_doc_to_index(writer, fname):
 def new_index(index_path):
     ix = index.create_in(index_path, schema=get_schema())
     with ix.writer() as writer:
+        file_count = 0
         for fname in project_files():
             add_doc_to_index(writer, fname)
+            file_count += 1
+            if file_count % 10 == 0:
+                sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
+
     return ix
 
 
@@ -221,6 +230,8 @@ def incremental_index(index_path):
     indexed_paths = set()
     # The set of all paths we need to re-index
     to_index = set()
+
+    print("artemn: increamental index")
 
     with ix.searcher() as searcher:
         with ix.writer() as writer:
@@ -246,11 +257,16 @@ def incremental_index(index_path):
             # Loop over the files in the filesystem
             # Assume we have a function that gathers the filenames of the
             # documents to be indexed
+            file_count = 0
             for path in project_files():
                 if path in to_index or path not in indexed_paths:
                     # This is either a file that's changed, or a new file
                     # that wasn't indexed before. So index it!
+                    print("artemn: add to index: %s" % path)
                     add_doc_to_index(writer, path)
+                file_count += 1
+                if file_count % 10:
+                    sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
     return ix
 
 
@@ -422,6 +438,7 @@ def whoosh_search(search_string):
         return
 
     ix = index.open_dir(index_folder())
+    print ("artemn : %s" % index_folder())
     qp = QueryParser("content", schema=ix.schema)
 
     # Search for phrases. search_string should to be in quotes
@@ -429,6 +446,7 @@ def whoosh_search(search_string):
 
     with ix.searcher() as searcher:
         hits = searcher.search(q, limit=None, terms=True)
+        print("artemn: found hits %d" % len(hits))
         show_hits(hits, search_string)
 
     stop = timeit.default_timer()
@@ -503,7 +521,7 @@ class WhooshIndexCommand(sublime_plugin.TextCommand):
 
 
 class WhooshSearchCommand(sublime_plugin.TextCommand):
-    def run(self, edit, search_string="artemn my_function123"):
+    def run(self, edit, search_string="monitored_num_of_mgmt_bond_slave_ports"):
         sublime.set_timeout_async(lambda: whoosh_search(search_string), 1)
 
 
@@ -530,7 +548,7 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
         _settings = sublime.load_settings(_whoosh_search_settings)
         start = timeit.default_timer()
 
-        print(_whoosh_view.size())
+        print("artemn")
 
         stop = timeit.default_timer()
         print(stop - start)
