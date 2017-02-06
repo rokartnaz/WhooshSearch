@@ -14,7 +14,7 @@ from WhooshSearch.whoosh.fields import *
 from WhooshSearch.whoosh.filedb.filestore import FileStorage
 from WhooshSearch.whoosh.qparser import QueryParser
 from WhooshSearch.whoosh.analysis \
-    import RegexTokenizer, IntraWordFilter, LowercaseFilter, StopFilter, MultiFilter
+    import RegexTokenizer, IntraWordFilter, LowercaseFilter, StopFilter, MultiFilter, FancyAnalyzer
 from WhooshSearch.whoosh.compat import u
 from WhooshSearch.whoosh import highlight
 from WhooshSearch.whoosh.analysis import Token
@@ -27,28 +27,43 @@ _whoosh_search_settings = "WhooshSearch.sublime-settings"
 _settings = None
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
 _whoosh_view = None
-_project_files = []
+
+STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
+                        'for', 'from', 'have', 'if', 'in', 'is', 'it', 'may',
+                        'not', 'of', 'on', 'or', 'tbd', 'that', 'the', 'this',
+                        'to', 'us', 'we', 'when', 'will', 'with', 'yet',
+                        'you', 'your'))
+
+def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
+                  maxsize=None, gaps=True, splitwords=True, splitnums=True,
+                  mergewords=False, mergenums=False):
+    """Composes a RegexTokenizer with an IntraWordFilter, LowercaseFilter, and
+    StopFilter.
+
+    >>> ana = FancyAnalyzer()
+    >>> [token.text for token in ana("Should I call getInt or get_real?")]
+    ["should", "call", "getInt", "get", "int", "get_real", "get", "real"]
+
+    :param expression: The regular expression pattern to use to extract tokens.
+    :param stoplist: A list of stop words. Set this to None to disable
+        the stop word filter.
+    :param minsize: Words smaller than this are removed from the stream.
+    :param maxsize: Words longer that this are removed from the stream.
+    :param gaps: If True, the tokenizer *splits* on the expression, rather
+        than matching on the expression.
+    """
+
+    return (RegexTokenizer(expression=expression, gaps=gaps)
+            | IntraWordFilter(delims=u("-'\"()!@#$%^&*[]{}<>\|;:,./?`~=+"),
+                splitwords=splitwords, splitnums=splitnums,
+                              mergewords=mergewords, mergenums=mergenums)
+            | LowercaseFilter()
+            | StopFilter(stoplist=stoplist, minsize=minsize)
+            )
+
 
 def custom_analyzer():
-    delims = u("_- '\"()!@#$%^&*[]{}<>\|;:,./?`~=+")
-    intraword = MultiFilter(index=IntraWordFilter(splitwords=True,
-                                                  splitnums=True,
-                                                  mergewords=True,
-                                                  mergenums=True,
-                                                  delims=delims),
-                            query=IntraWordFilter(splitwords=False,
-                                                  splitnums=False,
-                                                  delims=delims))
-
-    # return RegexTokenizer(expression=r"\s+", gaps=True) \
-    #        | IntraWordFilter(splitwords=False,
-    #                          splitnums=False,
-    #                          delims=delims) \
-    #        | LowercaseFilter() \
-    #        | StopFilter()
-
-    return analysis.StandardAnalyzer()
-
+    return CustomFancyAnalyzer()
 
 def get_schema():
     return Schema (path=ID(unique=True, stored=True),
@@ -112,8 +127,12 @@ def file_filter(fname):
     if is_hidden(fname):
         return False
 
-    # if is_binary_file(fname):
-    #     return False
+    if is_binary_file(fname):
+        return False
+
+    # for test artemn
+    if os.path.splitext(fname)[1] not in [".c", ".h"]:
+        return False
 
     return True
 
@@ -144,46 +163,15 @@ def is_binary_file(file_path):
 
 #get list of all files in project that we are going to index
 #TODO return dictionary for quick search
-def calculate_project_files():
-    global _project_files
-    future_project_files = []
-    file_count = 0
-
+def project_files():
     for folder in project_folders():
         folder_files = []
         for (dirpath, dirnames, filenames) in os.walk(folder, topdown=True):
             dirnames[:] = [d for d in dirnames if dir_filter(d)]
-
             for f in filenames:
                 fname = os.path.join(dirpath, f)
                 if file_filter(fname):
-                    folder_files.append(fname)
-                    file_count += 1
-                    if file_count % 100 == 0:
-                        sublime.active_window().status_message("Whoosh Collecting: %d" % file_count)
-
-        future_project_files.extend(folder_files)
-
-    print("artemn: project_files: %d" % len(future_project_files))
-    _project_files = future_project_files
-
-    return _project_files
-
-
-def project_files_number():
-    return len(_project_files)
-
-
-def read_project_files_txt():
-    if not os.path.exists(_whoosh_project_files_txt):
-        return []
-
-    files = [line.rstrip('\n') for line in open(_whoosh_project_files_txt)]
-    return files
-
-
-def project_files():
-    return calculate_project_files()
+                    yield fname
 
 
 def prepare_index_folder():
@@ -211,13 +199,14 @@ def add_doc_to_index(writer, fname):
 # Create the index from scratch
 def new_index(index_path):
     ix = index.create_in(index_path, schema=get_schema())
-    with ix.writer() as writer:
+    with ix.writer(procs=4, limitmb=512, multisegment=True) as writer:
         file_count = 0
         for fname in project_files():
             add_doc_to_index(writer, fname)
             file_count += 1
-            if file_count % 10 == 0:
+            if file_count % 100 == 0:
                 sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
+        sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
 
     return ix
 
@@ -265,8 +254,10 @@ def incremental_index(index_path):
                     print("artemn: add to index: %s" % path)
                     add_doc_to_index(writer, path)
                 file_count += 1
-                if file_count % 10:
+                if file_count % 100:
                     sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
+            sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
+
     return ix
 
 
@@ -398,7 +389,7 @@ def whoosh_reset():
 
         stop = timeit.default_timer()
         print(stop - start)
-    except WhooshSearch.whoosh.store.LockError:
+    except index.LockError:
         print("Index is locked")
 
 
@@ -422,8 +413,8 @@ def whoosh_index():
 
         stop = timeit.default_timer()
         print(stop - start)
-    except WhooshSearch.whoosh.store.LockError:
-        print("Index is locked") 
+    except index.LockError:
+        print("Index is locked")
 
 
 def whoosh_search(search_string):
@@ -478,7 +469,7 @@ def open_whoosh_view():
 
 
 def display_filepath(filepath):
-    _whoosh_view.run_command("view_append_text", 
+    _whoosh_view.run_command("view_append_text",
                              {"text" : "%s:\n" % filepath, "search_string" : None})
 
 
@@ -490,7 +481,7 @@ def display_fragments(fragments, search_string):
         text = '%8d:\t' % (line_count + 1)
         text += fragment.text[fragment.startchar : fragment.endchar] + '\n';
         line_count_start = fragment.startchar
-        _whoosh_view.run_command("view_append_text", 
+        _whoosh_view.run_command("view_append_text",
                                  {"text" : text, "search_string" : search_string})
 
 
@@ -504,7 +495,7 @@ def show_hits(hits, search_string):
     setup_hits(hits)
     open_whoosh_view()
 
-    display_header(project_files_number(), search_string)
+    display_header(hits.searcher.doc_count(), search_string)
 
     for hit in hits:
         content = file_content(hit["path"])
@@ -521,7 +512,7 @@ class WhooshIndexCommand(sublime_plugin.TextCommand):
 
 
 class WhooshSearchCommand(sublime_plugin.TextCommand):
-    def run(self, edit, search_string="monitored_num_of_mgmt_bond_slave_ports"):
+    def run(self, edit, search_string="pcb_va"):
         sublime.set_timeout_async(lambda: whoosh_search(search_string), 1)
 
 

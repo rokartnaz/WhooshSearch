@@ -145,8 +145,8 @@ class Storage(object):
         if self.readonly:
             raise ReadOnlyError
         if indexclass is None:
-            import whoosh.index
-            indexclass = whoosh.index.FileIndex
+            import WhooshSearch.whoosh.index
+            indexclass = WhooshSearch.whoosh.index.FileIndex
         return indexclass.create(self, schema, indexname)
 
     def open_index(self, indexname=_DEF_INDEX_NAME, schema=None, indexclass=None):
@@ -171,8 +171,8 @@ class Storage(object):
         """
 
         if indexclass is None:
-            import whoosh.index
-            indexclass = whoosh.index.FileIndex
+            import WhooshSearch.whoosh.index
+            indexclass = WhooshSearch.whoosh.index.FileIndex
         return indexclass(self, schema=schema, indexname=indexname)
 
     def index_exists(self, indexname=None):

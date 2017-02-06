@@ -1,7 +1,7 @@
 1) Fast access menu to build index, delete index, start different types of search
-2) Input window: 
+2) Input window:
     - [default] case sensitive partial words enabled
-    - case-insensitive partial words  @ 
+    - case-insensitive partial words  @
     - case-sesitive whole words       #
     - case-insensitive whole words    $
     - regexp                          %
@@ -64,5 +64,14 @@ test my_function123
 3) incremental index otherwise
 4) on save: micro index.
 5) new command reset project_files + incremental_index
+
+monitored_num_of_mgmt_bond_slave_ports
+monitored_num_of_mgmt_bond_slave_ports.
+
+monitored_num_of_mgmt_bond_slave_ports.aasdasd [FAIL]
+
+asdasdasd.monitored_num_of_mgmt_bond_slave_ports [FAIL]
+
+monitored_num_of_mgmt_bond_slave_ports[asdasd]
 
 
