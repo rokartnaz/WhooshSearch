@@ -20,11 +20,12 @@ from WhooshSearch.whoosh import highlight
 from WhooshSearch.whoosh.analysis import Token
 from WhooshSearch.whoosh.query import Phrase
 from itertools import groupby
+import multiprocessing
 
 
 _index_folder_tag = ".whoosh"
 _whoosh_search_settings = "WhooshSearch.sublime-settings"
-_settings = None
+_settings = sublime.load_settings(_whoosh_search_settings)
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
 _whoosh_view = None
 
@@ -33,6 +34,12 @@ STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
                         'not', 'of', 'on', 'or', 'tbd', 'that', 'the', 'this',
                         'to', 'us', 'we', 'when', 'will', 'with', 'yet',
                         'you', 'your'))
+
+sys.argv = [""]
+
+if os.name == "nt":
+    multiprocessing.set_executable(_settings.get("win_python_path"))
+
 
 def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
                   maxsize=None, gaps=True, splitwords=True, splitnums=True,
@@ -131,8 +138,8 @@ def file_filter(fname):
         return False
 
     # for test artemn
-    if os.path.splitext(fname)[1] not in [".c", ".h"]:
-        return False
+    # if os.path.splitext(fname)[1] not in [".c", ".h"]:
+    #     return False
 
     return True
 
@@ -199,7 +206,7 @@ def add_doc_to_index(writer, fname):
 # Create the index from scratch
 def new_index(index_path):
     ix = index.create_in(index_path, schema=get_schema())
-    with ix.writer(procs=4, limitmb=512, multisegment=True) as writer:
+    with ix.writer(limitmb=2048) as writer:
         file_count = 0
         for fname in project_files():
             add_doc_to_index(writer, fname)
@@ -223,14 +230,17 @@ def incremental_index(index_path):
     print("artemn: increamental index")
 
     with ix.searcher() as searcher:
-        with ix.writer() as writer:
+        with ix.writer(limitmb=2048) as writer:
             # Loop over the stored fields in the index
+            print("artemn: loop over stored fields")
             for fields in searcher.all_stored_fields():
                 indexed_path = fields['path']
+                print("artemn: WAS INDEXED: %s" % indexed_path)
                 indexed_paths.add(indexed_path)
 
                 if not os.path.exists(indexed_path) or not file_filter(indexed_path):
                     # This file was deleted since it was indexed
+                    print("artemn: This file was deleted since it was indexed")
                     writer.delete_by_term('path', indexed_path)
                 else:
                     # Check if this file was changed since it
@@ -240,6 +250,7 @@ def incremental_index(index_path):
                     if mtime > indexed_time:
                         # The file has changed, delete it and add it to the list of
                         # files to reindex
+                        print("artemn: file was changed")
                         writer.delete_by_term('path', indexed_path)
                         to_index.add(indexed_path)
 
@@ -253,8 +264,8 @@ def incremental_index(index_path):
                     # that wasn't indexed before. So index it!
                     print("artemn: add to index: %s" % path)
                     add_doc_to_index(writer, path)
-                file_count += 1
-                if file_count % 100:
+                    file_count += 1
+                if file_count % 100 == 0:
                     sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
             sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
 
@@ -374,14 +385,10 @@ class CustomFormatter(highlight.Formatter):
 
 
 def whoosh_reset():
-    global _settings
-
     start = timeit.default_timer()
     if not is_project():
         print("WhooshSearch indexes only projects")
         return
-
-    _settings = sublime.load_settings(_whoosh_search_settings)
 
     index_path = prepare_index_folder()
     try:
@@ -394,14 +401,10 @@ def whoosh_reset():
 
 
 def whoosh_index():
-    global _settings
-
     start = timeit.default_timer()
     if not is_project():
         print("WhooshSearch indexes only projects")
         return
-
-    _settings = sublime.load_settings(_whoosh_search_settings)
 
     index_path = prepare_index_folder()
 
@@ -533,14 +536,10 @@ class ViewAppendTextCommand(sublime_plugin.TextCommand):
 
 
 class WhooshTestCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        global _settings
-
-        _settings = sublime.load_settings(_whoosh_search_settings)
+    def run(self, edit):        
         start = timeit.default_timer()
 
-        print("artemn")
+        print(os.name)
 
         stop = timeit.default_timer()
         print(stop - start)
-
