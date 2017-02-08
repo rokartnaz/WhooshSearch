@@ -6,6 +6,7 @@ import errno
 import timeit
 import ctypes
 import time
+import shutil
 
 import WhooshSearch.whoosh.analysis
 
@@ -211,7 +212,7 @@ def new_index(index_path):
         for fname in project_files():
             add_doc_to_index(writer, fname)
             file_count += 1
-            if file_count % 100 == 0:
+            if file_count and file_count % 100 == 0:
                 sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
         sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
 
@@ -232,15 +233,14 @@ def incremental_index(index_path):
     with ix.searcher() as searcher:
         with ix.writer(limitmb=2048) as writer:
             # Loop over the stored fields in the index
-            print("artemn: loop over stored fields")
             for fields in searcher.all_stored_fields():
                 indexed_path = fields['path']
-                print("artemn: WAS INDEXED: %s" % indexed_path)
+                # print("artemn: WAS INDEXED: %s" % indexed_path)
                 indexed_paths.add(indexed_path)
 
                 if not os.path.exists(indexed_path) or not file_filter(indexed_path):
                     # This file was deleted since it was indexed
-                    print("artemn: This file was deleted since it was indexed")
+                    # print("artemn: This file was deleted since it was indexed")
                     writer.delete_by_term('path', indexed_path)
                 else:
                     # Check if this file was changed since it
@@ -250,7 +250,7 @@ def incremental_index(index_path):
                     if mtime > indexed_time:
                         # The file has changed, delete it and add it to the list of
                         # files to reindex
-                        print("artemn: file was changed")
+                        # print("artemn: file was changed")
                         writer.delete_by_term('path', indexed_path)
                         to_index.add(indexed_path)
 
@@ -265,9 +265,10 @@ def incremental_index(index_path):
                     print("artemn: add to index: %s" % path)
                     add_doc_to_index(writer, path)
                     file_count += 1
-                if file_count % 100 == 0:
+                if file_count and file_count % 100 == 0:
                     sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
             sublime.active_window().status_message("Whoosh Indexing: %d" % file_count)
+
 
     return ix
 
@@ -539,7 +540,7 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
     def run(self, edit):        
         start = timeit.default_timer()
 
-        print(os.name)
+        
 
         stop = timeit.default_timer()
         print(stop - start)
