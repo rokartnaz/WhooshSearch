@@ -76,7 +76,7 @@ def custom_analyzer():
 def get_schema():
     return Schema (path=ID(unique=True, stored=True),
                    time=STORED,
-                   content=TEXT(analyzer=custom_analyzer(), chars=True))
+                   content=TEXT(analyzer=custom_analyzer(), chars=True, stored=True))
 
 
 def is_hidden(filepath):
@@ -484,7 +484,7 @@ class WhooshSearch(WhooshInfrastructure):
 
         with ix.searcher() as searcher:
             hits = searcher.search(q, limit=None, terms=True)
-            self.show_hits(hits, self.search_string)
+            self.show_hits(hits)
 
         stop = timeit.default_timer()
         print(stop - start)
@@ -502,6 +502,7 @@ class WhooshSearch(WhooshInfrastructure):
 
         if tmp_view is not None:
             self.whoosh_view = tmp_view
+            self.whoosh_view.set_read_only(False)
             self.window.focus_view(self.whoosh_view)
             self.whoosh_view.show(self.whoosh_view.size())
             return
@@ -510,16 +511,19 @@ class WhooshSearch(WhooshInfrastructure):
         self.whoosh_view.set_scratch(True)
         self.whoosh_view.set_name(_find_in_files_name)
         self.whoosh_view.set_syntax_file(_whoosh_syntax_file)
-        #_whoosh_view.set_read_only(True)
         return
 
 
+    def clear_whoosh_view(self):
+        self.whoosh_view.run_command("whoosh_view_clear_all")
+
+
     def display_filepath(self, filepath):
-        self.whoosh_view.run_command("view_append_text",
+        self.whoosh_view.run_command("whoosh_view_append_text",
                                      {"text" : "\n%s:\n" % filepath, "search_string" : None})
 
 
-    def display_fragments(self, fragments, search_string):
+    def display_fragments(self, fragments):
         line_count_start = 0
         line_count = 0
         for fragment in fragments:
@@ -527,27 +531,43 @@ class WhooshSearch(WhooshInfrastructure):
             text = '%8d:\t' % (line_count + 1)
             text += fragment.text[fragment.startchar : fragment.endchar] + '\n';
             line_count_start = fragment.startchar
-            self.whoosh_view.run_command("view_append_text",
-                                         {"text" : text, "search_string" : search_string})
+            self.whoosh_view.run_command("whoosh_view_append_text",
+                                         {"text" : text, "search_string" : self.search_string})
 
 
-    def display_header(self, file_number, search_string):
-        header = '\nSearching %d files for "%s"\n' % (file_number, search_string)
-        self.whoosh_view.run_command("view_append_text",
-                                     {"text" : header, "search_string" : search_string})
+    def display_header(self, file_number):
+        header = 'Searching %d files for "%s"\n' % (file_number, self.search_string)
+        self.whoosh_view.run_command("whoosh_view_append_text",
+                                     {"text" : header, "search_string" : self.search_string})
 
 
-    def show_hits(self, hits, search_string):
+    def display_footer(self, hit_count):
+        regions = self.whoosh_view.find_all(self.search_string,
+                                            sublime.LITERAL | sublime.IGNORECASE)
+        text = "\n%d matches across %d files\n" % (len(regions) - 1, hit_count)
+        self.whoosh_view.run_command("whoosh_view_append_text",
+                                     {"text" : text, "search_string" : None})
+
+
+    def show_hits(self, hits):
         self.setup_hits(hits)
         self.open_whoosh_view()
+        self.clear_whoosh_view()
 
-        self.display_header(hits.searcher.doc_count(), search_string)
+        self.display_header(hits.searcher.doc_count())
 
         for hit in hits:
-            content = file_content(hit["path"])
+            # content = file_content(hit["path"])
+            content = hit["content"]
             fragments = hit.highlights("content", text=content, top=1)
             self.display_filepath(hit["path"])
-            self.display_fragments(fragments, search_string)
+            self.display_fragments(fragments)
+
+        self.display_footer(len(hits))
+        self.block_view()
+
+    def block_view(self):
+        self.whoosh_view.set_read_only(True)
 
 
 class WhooshTest(WhooshInfrastructure):
@@ -571,9 +591,21 @@ class WhooshIndexCommand(sublime_plugin.TextCommand):
         sublime.set_timeout_async(whoosh_index, 0)
 
 
-class WhooshSearchCommand(sublime_plugin.TextCommand):
-    def run(self, edit, search_string="pcb_va"):
-        whoosh_search = WhooshSearch(sublime.active_window(), search_string)
+class WhooshSearchPromptCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        self.window.show_input_panel("Whoosh Search:", "", self.on_done, None, None)
+        pass
+
+    def on_done(self, text):
+        try:
+            self.window.run_command("whoosh_search", {"search_string": text} )
+        except ValueError:
+            pass
+
+
+class WhooshSearchCommand(sublime_plugin.WindowCommand):
+    def run(self, search_string):
+        whoosh_search = WhooshSearch(self.window, search_string)
         sublime.set_timeout_async(whoosh_search, 0)
 
 
@@ -583,7 +615,7 @@ class WhooshResetCommand(sublime_plugin.TextCommand):
         sublime.set_timeout_async(whoosh_reset, 0)
 
 
-class ViewAppendTextCommand(sublime_plugin.TextCommand):
+class WhooshViewAppendTextCommand(sublime_plugin.TextCommand):
     def run(self, edit, text, search_string):
         start_point = self.view.size()
         self.view.insert(edit, start_point, text)
@@ -591,7 +623,64 @@ class ViewAppendTextCommand(sublime_plugin.TextCommand):
         if search_string is not None:
             regions = self.view.find_all(search_string,
                                     sublime.LITERAL | sublime.IGNORECASE)
-            self.view.add_regions('whoosh_regions', regions, "text.find-in-files", "", sublime.DRAW_OUTLINED)
+            self.view.add_regions('whoosh_regions', regions[1:], "text.find-in-files", "", sublime.DRAW_OUTLINED)
+
+
+class WhooshViewClearAllCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        self.view.erase(edit, sublime.Region(0, self.view.size()))
+
+
+class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
+    def run_(self, edit, args):
+        if self.view.name() == _find_in_files_name:
+            self.whoosh_jump()
+        else:
+            self.view.run_command("expand_selection", {"to": "word"})
+
+    def whoosh_jump(self):
+        click_region = self.view.sel()[0]
+        line_region = self.view.line(click_region)
+        line = self.view.substr(line_region)
+
+        if not line:
+            return
+
+        if line[0].isspace():
+            # find line number and go up until Path is found
+            file_line_number = self.line_number_from_match(line)
+            file_name = self.file_name_from_match(line_region)
+            print("%s: %s" % (file_name, file_line_number))
+        else:
+            print("PATH!")
+
+    def line_number_from_match(self, line):
+        i = 0
+        while line[i].isspace():
+            i += 1
+
+        left = i
+
+        while line[i] != ':':
+            i += 1
+
+        right = i
+
+        return int(line[left : right])
+
+    def file_name_from_match(self, match_region):
+        current_row = self.view.rowcol(match_region.a)[0]
+        while True:
+            current_row -= 1
+            first_char = self.view.substr(self.view.text_point(current_row, 0))
+            if not first_char:
+                continue
+            if not first_char.isspace():
+                break
+
+        line_region = self.view.line(self.view.text_point(current_row, 0))
+        return self.view.substr(line_region)[:-1]
+
 
 
 class WhooshTestCommand(sublime_plugin.TextCommand):
