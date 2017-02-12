@@ -4,9 +4,11 @@ import os
 import io
 import errno
 import timeit
+import time
 import ctypes
 import time
 import shutil
+import threading
 
 import WhooshSearch.whoosh.analysis
 
@@ -38,8 +40,7 @@ STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
 
 sys.argv = [""]
 
-_status_message = {}
-
+current_milli_time = lambda: int(round(time.time() * 1000))
 
 def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
                   maxsize=None, gaps=True, splitwords=True, splitnums=True,
@@ -232,7 +233,7 @@ class CustomFormatter(highlight.Formatter):
 class WhooshInfrastructure():
     def __init__(self, window):
         self.window = window
-        self.is_status_message = False
+        self.status_message_id = 0
 
     def __call__(self):
         raise NotImplementedError
@@ -255,25 +256,25 @@ class WhooshInfrastructure():
         return True
 
 
-    def status_message(self, message, timeout=1000):
+    def status_message(self, message, timeout=2000):
         if not message:
-            self.is_status_message = False
+            self.status_message_id = 0
             return
 
-        self.is_status_message = True
-        self.periodic_status_message(message, timeout)
+        self.status_message_id = current_milli_time()
+        threading.Thread(target=self.periodic_status_message, args=(message, self.status_message_id, timeout)).start()
 
 
-    def periodic_status_message(self, message, timeout=1000):
-        if not self.is_status_message:
-            return
+    def periodic_status_message(self, message, message_id, timeout=1000):
+        while True:
+            if message_id != self.status_message_id:
+                return
 
-        if not self.window:
-            return
+            if not self.window:
+                return
 
-        self.window.status_message(message)
-
-        sublime.set_timeout_async(lambda: self.periodic_status_message(message, timeout), timeout)
+            self.window.status_message(message)
+            time.sleep(timeout / 1000)
 
 
     #get list of all files in project that we are going to index
@@ -376,8 +377,8 @@ class WhooshIndex(WhooshInfrastructure):
                 add_doc_to_index(writer, fname)
                 file_count += 1
                 if file_count and file_count % 100 == 0:
-                    self.window.status_message("Whoosh Indexing: %d" % file_count)
-            self.status_message("Whoosh Commit: %d" % file_count, 2000)
+                    self.status_message("Whoosh Indexing: %d" % file_count)
+            self.status_message("Whoosh Commit: %d" % file_count)
 
         self.status_message("")
 
@@ -393,7 +394,7 @@ class WhooshIndex(WhooshInfrastructure):
         # The set of all paths we need to re-index
         to_index = set()
 
-        print("artemn: increamental index")
+        self.status_message("Whoosh Indexing...")
 
         with ix.searcher() as searcher:
             with ix.writer(limitmb=2048) as writer:
@@ -427,12 +428,12 @@ class WhooshIndex(WhooshInfrastructure):
                     if path in to_index or path not in indexed_paths:
                         # This is either a file that's changed, or a new file
                         # that wasn't indexed before. So index it!
-                        print("artemn: add to index: %s" % path)
+                        # print("artemn: add to index: %s" % path)
                         add_doc_to_index(writer, path)
                         file_count += 1
                     if file_count and file_count % 100 == 0:
-                        self.window.status_message("Whoosh Indexing: %d" % file_count)
-                self.status_message("Whoosh Commit: %d" % file_count, 2000)
+                        self.status_message("Whoosh Indexing: %d" % file_count)
+                self.status_message("Whoosh Commit: %d" % file_count)
             self.status_message("")
 
         return ix
@@ -483,7 +484,6 @@ class WhooshSearch(WhooshInfrastructure):
 
         with ix.searcher() as searcher:
             hits = searcher.search(q, limit=None, terms=True)
-            print("artemn: found hits %d" % len(hits))
             self.show_hits(hits, self.search_string)
 
         stop = timeit.default_timer()
@@ -549,24 +549,38 @@ class WhooshSearch(WhooshInfrastructure):
             self.display_filepath(hit["path"])
             self.display_fragments(fragments, search_string)
 
+
+class WhooshTest(WhooshInfrastructure):
+    def __init__(self, window):
+        WhooshInfrastructure.__init__(self, window)
+
+    def __call__(self):
+        self.status_message("Artemn!!!")
+        time.sleep(10)
+        self.status_message("Sveta!!!")
+        time.sleep(10)
+        self.status_message("")
+        print("The End!")
+
+
 ###############################################################################
 
 class WhooshIndexCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         whoosh_index = WhooshIndex(sublime.active_window())
-        sublime.set_timeout_async(whoosh_index, 1)
+        sublime.set_timeout_async(whoosh_index, 0)
 
 
 class WhooshSearchCommand(sublime_plugin.TextCommand):
     def run(self, edit, search_string="pcb_va"):
         whoosh_search = WhooshSearch(sublime.active_window(), search_string)
-        sublime.set_timeout_async(whoosh_search, 1)
+        sublime.set_timeout_async(whoosh_search, 0)
 
 
 class WhooshResetCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         whoosh_reset = WhooshReset(sublime.active_window())
-        sublime.set_timeout_async(whoosh_reset, 1)
+        sublime.set_timeout_async(whoosh_reset, 0)
 
 
 class ViewAppendTextCommand(sublime_plugin.TextCommand):
@@ -584,8 +598,9 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         start = timeit.default_timer()
 
-        infra = WhooshInfrastructure(sublime.active_window())
-        print(infra.project_name())
+        whoosh_test = WhooshTest(sublime.active_window())
+        sublime.set_timeout_async(whoosh_test, 0)
 
         stop = timeit.default_timer()
         print(stop - start)
+
