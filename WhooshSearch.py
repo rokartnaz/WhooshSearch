@@ -43,7 +43,7 @@ sys.argv = [""]
 current_milli_time = lambda: int(round(time.time() * 1000))
 
 def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
-                  maxsize=None, gaps=True, splitwords=True, splitnums=True,
+                  maxsize=None, gaps=True, splitwords=False, splitnums=False,
                   mergewords=False, mergenums=False):
     """Composes a RegexTokenizer with an IntraWordFilter, LowercaseFilter, and
     StopFilter.
@@ -74,9 +74,14 @@ def custom_analyzer():
     return CustomFancyAnalyzer()
 
 def get_schema():
-    return Schema (path=ID(unique=True, stored=True),
-                   time=STORED,
-                   content=TEXT(analyzer=custom_analyzer(), chars=True, stored=True))
+    if _settings.get("store_content"):
+        return Schema (path=ID(unique=True, stored=True),
+                       time=STORED,
+                       content=TEXT(analyzer=custom_analyzer(), chars=True, stored=True))
+    else:
+        return Schema (path=ID(unique=True, stored=True),
+                       time=STORED,
+                       content=TEXT(analyzer=custom_analyzer(), chars=True))
 
 
 def is_hidden(filepath):
@@ -308,6 +313,10 @@ class WhooshInfrastructure():
 
     def skip_dir(self, dirpath):
         skip_folders = _settings.get("skip_folders")
+
+        if not skip_folders:
+            return False
+
         folder_name = os.path.split(dirpath)[1]
 
         for skip in skip_folders:
@@ -351,7 +360,7 @@ class WhooshIndex(WhooshInfrastructure):
     def __call__(self):
         start = timeit.default_timer()
         if not self.is_project():
-            print("WhooshSearch indexes only projects")
+            self.window.status_message("WhooshSearch indexes only projects")
             return
 
         index_path = self.prepare_index_folder()
@@ -365,7 +374,7 @@ class WhooshIndex(WhooshInfrastructure):
             stop = timeit.default_timer()
             print(stop - start)
         except index.LockError:
-            print("Index is locked")
+            self.window.status_message("WhooshSearch: Index is locked")
 
 
     # Create the index from scratch
@@ -378,7 +387,7 @@ class WhooshIndex(WhooshInfrastructure):
                 file_count += 1
                 if file_count and file_count % 100 == 0:
                     self.status_message("Whoosh Indexing: %d" % file_count)
-            self.status_message("Whoosh Commit: %d" % file_count)
+            self.status_message("Whoosh Commiting: %d" % file_count)
 
         self.status_message("")
 
@@ -401,12 +410,10 @@ class WhooshIndex(WhooshInfrastructure):
                 # Loop over the stored fields in the index
                 for fields in searcher.all_stored_fields():
                     indexed_path = fields['path']
-                    # print("artemn: WAS INDEXED: %s" % indexed_path)
                     indexed_paths.add(indexed_path)
 
                     if not os.path.exists(indexed_path) or not self.file_filter(indexed_path):
                         # This file was deleted since it was indexed
-                        # print("artemn: This file was deleted since it was indexed")
                         writer.delete_by_term('path', indexed_path)
                     else:
                         # Check if this file was changed since it
@@ -416,7 +423,6 @@ class WhooshIndex(WhooshInfrastructure):
                         if mtime > indexed_time:
                             # The file has changed, delete it and add it to the list of
                             # files to reindex
-                            # print("artemn: file was changed")
                             writer.delete_by_term('path', indexed_path)
                             to_index.add(indexed_path)
 
@@ -428,7 +434,6 @@ class WhooshIndex(WhooshInfrastructure):
                     if path in to_index or path not in indexed_paths:
                         # This is either a file that's changed, or a new file
                         # that wasn't indexed before. So index it!
-                        # print("artemn: add to index: %s" % path)
                         add_doc_to_index(writer, path)
                         file_count += 1
                     if file_count and file_count % 100 == 0:
@@ -446,7 +451,7 @@ class WhooshReset(WhooshIndex):
     def __call__(self):
         start = timeit.default_timer()
         if not self.is_project():
-            print("WhooshSearch indexes only projects")
+            self.window.status_message("WhooshSearch indexes only projects")
             return
 
         index_path = self.prepare_index_folder()
@@ -456,7 +461,7 @@ class WhooshReset(WhooshIndex):
             stop = timeit.default_timer()
             print(stop - start)
         except index.LockError:
-            print("Index is locked")
+            self.window.status_message("WhooshSearch: Index is locked")
 
 
 class WhooshSearch(WhooshInfrastructure):
@@ -469,11 +474,11 @@ class WhooshSearch(WhooshInfrastructure):
         start = timeit.default_timer()
 
         if not self.is_project():
-            print("WhooshSearch searches only projects")
+            self.window.status_message("WhooshSearch indexes only projects")
             return
 
         if not index.exists_in(self.index_folder()):
-            print("WhooshSearch: Please create the index")
+            self.window.status_message("WhooshSearch: Please create the index")
             return
 
         ix = index.open_dir(self.index_folder())
@@ -557,8 +562,11 @@ class WhooshSearch(WhooshInfrastructure):
         self.display_header(hits.searcher.doc_count())
 
         for hit in hits:
-            # content = file_content(hit["path"])
-            content = hit["content"]
+            if _settings.get("store_content") and "content" in hit:
+                content = hit["content"]
+            else:
+                content = file_content(hit["path"])
+
             fragments = hit.highlights("content", text=content, top=1)
             self.display_filepath(hit["path"])
             self.display_fragments(fragments)
@@ -568,6 +576,7 @@ class WhooshSearch(WhooshInfrastructure):
 
     def block_view(self):
         self.whoosh_view.set_read_only(True)
+        self.whoosh_view.sel().clear()
 
 
 class WhooshTest(WhooshInfrastructure):
@@ -575,13 +584,24 @@ class WhooshTest(WhooshInfrastructure):
         WhooshInfrastructure.__init__(self, window)
 
     def __call__(self):
-        self.status_message("Artemn!!!")
-        time.sleep(10)
-        self.status_message("Sveta!!!")
-        time.sleep(10)
-        self.status_message("")
-        print("The End!")
+        store_content = _settings.get("store_content")
+        print("artemn!")
+        print(store_content)
 
+
+def jump_find_result(file_view, line_number, search_string):
+    while file_view.is_loading():
+        pass
+
+    pos = file_view.text_point(line_number - 1, 0)
+    file_view.show_at_center(pos)
+
+    file_view.sel().clear()
+    reg = file_view.find(search_string, pos, sublime.LITERAL | sublime.IGNORECASE)
+    if reg.a != -1:
+        file_view.sel().add(reg)
+    else:
+        file_view.sel().add(sublime.Region(pos, pos))
 
 ###############################################################################
 
@@ -648,11 +668,21 @@ class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
 
         if line[0].isspace():
             # find line number and go up until Path is found
-            file_line_number = self.line_number_from_match(line)
+            line_number = self.line_number_from_match(line)
             file_name = self.file_name_from_match(line_region)
-            print("%s: %s" % (file_name, file_line_number))
+            search_string = self.get_search_string()
+            self.jump_file(file_name, line_number, search_string)
         else:
             print("PATH!")
+
+    def get_search_string(self):
+        line_region = self.view.line(sublime.Region(0, 0))
+        line = self.view.substr(line_region)
+        i = 0
+        while line[i] != '"':
+            i += 1
+
+        return line[i + 1 : len(line) - 1]
 
     def line_number_from_match(self, line):
         i = 0
@@ -681,6 +711,9 @@ class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
         line_region = self.view.line(self.view.text_point(current_row, 0))
         return self.view.substr(line_region)[:-1]
 
+    def jump_file(self, file_name, line_number, search_string):
+        file_view = sublime.active_window().open_file(file_name)
+        sublime.set_timeout_async(lambda: jump_find_result(file_view, line_number, search_string), 0)
 
 
 class WhooshTestCommand(sublime_plugin.TextCommand):

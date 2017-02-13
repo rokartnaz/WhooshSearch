@@ -12,5 +12,6 @@
     "skip_file_extensions":
     [
         "txt"
-    ]
+    ],
+    "store_content" : true
 }

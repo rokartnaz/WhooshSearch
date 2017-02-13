@@ -331,8 +331,6 @@ class IntraWordFilter(Filter):
         and self.__dict__ == other.__dict__
 
     def _split(self, string):
-        bound = self.boundary
-
         # Yields (startchar, endchar) pairs for each indexable substring in
         # the given string, e.g. "WikiWord" -> (0, 4), (4, 8)
 
@@ -363,6 +361,7 @@ class IntraWordFilter(Filter):
                 part_end = part_match.end()
 
                 if splitting:
+                    bound = self.boundary
                     # The point to start splitting at
                     prev = part_start
                     # Find transitions (e.g. "iW" or "a0")
