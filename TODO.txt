@@ -1,6 +1,7 @@
 1) save file - change index
 2) reset and index keywords
-3) Expand settings
-4) Prepare package
-5) call hierarchy
+3) Create settings
+4) ctrl + shift + w -> open input with currently selected item
+5) Prepare package
+6) call hierarchy
 
