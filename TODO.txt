@@ -4,4 +4,4 @@
 4) ctrl + shift + w -> open input with currently selected item
 5) Prepare package
 6) call hierarchy
-
+7) all errors by status_messages
