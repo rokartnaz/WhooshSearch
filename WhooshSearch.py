@@ -31,6 +31,7 @@ _whoosh_search_settings = "WhooshSearch.sublime-settings"
 _settings = sublime.load_settings(_whoosh_search_settings)
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
 _find_in_files_name = "Whoosh Find Results"
+_search_history = WhooshSearchHistory(100)
 
 STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
                         'for', 'from', 'have', 'if', 'in', 'is', 'it', 'may',
@@ -589,6 +590,34 @@ class WhooshTest(WhooshInfrastructure):
         print(store_content)
 
 
+class WhooshSearchHistory():
+    def __init__(self, size):
+        self.size = size
+        self.pos = 0
+        self.history = []
+
+    def up(self):
+        self.pos += 1
+        if self.pos > len(self.history) - 1:
+            self.pos = len(self.history) - 1
+
+    def down(self):
+        self.pos -= 1
+        if self.pos < 0:
+            self.pos = 0
+
+    def get(self):
+        if not self.history:
+            return None
+        return self.history[self.pos]
+
+    def add(self, search_string):
+        self.history.append(search_string)
+        if len(self.history) > self.size:
+            self.history = self.history[1:]
+        self.pos = len(self.history) - 1
+
+
 def jump_find_result(file_view, line_number, search_string):
     while file_view.is_loading():
         pass
@@ -603,6 +632,11 @@ def jump_find_result(file_view, line_number, search_string):
     else:
         file_view.sel().add(sublime.Region(pos, pos))
 
+
+def refresh_whoosh_input(search_string):
+    sublime.active_window().run_command("whoosh_search_prompt", 
+            {"search_string" : search_string})
+
 ###############################################################################
 
 class WhooshIndexCommand(sublime_plugin.TextCommand):
@@ -612,12 +646,20 @@ class WhooshIndexCommand(sublime_plugin.TextCommand):
 
 
 class WhooshSearchPromptCommand(sublime_plugin.WindowCommand):
-    def run(self):
-        self.window.show_input_panel("Whoosh Search:", "", self.on_done, None, None)
+    def run(self, search_string=None):
+        global _search_history
+        if not search_string:
+            search_string = _search_history.get()
+            if not search_string:
+                search_string = ""
+
+        self.window.show_input_panel("Whoosh Search:", search_string, self.on_done, None, None)
         pass
 
     def on_done(self, text):
+        global _search_history
         try:
+            _search_history.add(text)
             self.window.run_command("whoosh_search", {"search_string": text} )
         except ValueError:
             pass
@@ -625,6 +667,9 @@ class WhooshSearchPromptCommand(sublime_plugin.WindowCommand):
 
 class WhooshSearchCommand(sublime_plugin.WindowCommand):
     def run(self, search_string):
+        if not search_string:
+            return
+
         whoosh_search = WhooshSearch(self.window, search_string)
         sublime.set_timeout_async(whoosh_search, 0)
 
@@ -652,7 +697,7 @@ class WhooshViewClearAllCommand(sublime_plugin.TextCommand):
 
 
 class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
-    def run_(self, edit, args):
+    def run(self, edit):
         if self.view.name() == _find_in_files_name:
             self.whoosh_jump()
         else:
@@ -673,7 +718,9 @@ class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
             search_string = self.get_search_string()
             self.jump_file(file_name, line_number, search_string)
         else:
-            print("PATH!")
+            if line.split()[0] == "Searching":
+                return
+            self.jump_file(line[:-1], 0, "")
 
     def get_search_string(self):
         line_region = self.view.line(sublime.Region(0, 0))
@@ -714,6 +761,22 @@ class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
     def jump_file(self, file_name, line_number, search_string):
         file_view = sublime.active_window().open_file(file_name)
         sublime.set_timeout_async(lambda: jump_find_result(file_view, line_number, search_string), 0)
+
+
+class WhooshArrowUpCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global _search_history
+        _search_history.up()
+        search_string = _search_history.get()
+        sublime.set_timeout_async(lambda: refresh_whoosh_input(search_string), 0)
+
+
+class WhooshArrowDownCommand(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global _search_history
+        _search_history.down()
+        search_string = _search_history.get()
+        sublime.set_timeout_async(lambda: refresh_whoosh_input(search_string), 0)
 
 
 class WhooshTestCommand(sublime_plugin.TextCommand):
