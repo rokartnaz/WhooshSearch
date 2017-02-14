@@ -1,7 +1,6 @@
-1) save file - change index
-2) reset and index keywords
 3) Create settings
 4) ctrl + shift + w -> open input with currently selected item
+5) ctrl + shift + w -> if there is no selected item open with history + ctrl+A
 5) Prepare package
 6) call hierarchy
 7) all errors by status_messages

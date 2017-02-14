@@ -74,4 +74,6 @@ asdasdasd.monitored_num_of_mgmt_bond_slave_ports [FAIL]
 
 monitored_num_of_mgmt_bond_slave_ports[asdasd]
 
+happy new year!!!
+abra-kadabra
 

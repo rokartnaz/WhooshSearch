@@ -31,7 +31,6 @@ _whoosh_search_settings = "WhooshSearch.sublime-settings"
 _settings = sublime.load_settings(_whoosh_search_settings)
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
 _find_in_files_name = "Whoosh Find Results"
-_search_history = WhooshSearchHistory(100)
 
 STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
                         'for', 'from', 'have', 'if', 'in', 'is', 'it', 'may',
@@ -42,6 +41,37 @@ STOP_WORDS = frozenset(('a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'can',
 sys.argv = [""]
 
 current_milli_time = lambda: int(round(time.time() * 1000))
+
+class WhooshSearchHistory():
+    def __init__(self, size):
+        self.size = size
+        self.pos = 0
+        self.history = []
+
+    def up(self):
+        self.pos += 1
+        if self.pos > len(self.history) - 1:
+            self.pos = len(self.history) - 1
+
+    def down(self):
+        self.pos -= 1
+        if self.pos < 0:
+            self.pos = 0
+
+    def get(self):
+        if not self.history:
+            return None
+        return self.history[self.pos]
+
+    def add(self, search_string):
+        self.history.append(search_string)
+        if len(self.history) > self.size:
+            self.history = self.history[1:]
+        self.pos = len(self.history) - 1
+
+
+_search_history = WhooshSearchHistory(100)
+
 
 def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
                   maxsize=None, gaps=True, splitwords=False, splitnums=False,
@@ -124,7 +154,6 @@ def add_doc_to_index(writer, fname):
     content = file_content(fname)
     time = os.path.getmtime(fname)
     writer.add_document(path=fname, content=content, time=time)
-
 
 
 class CustomHighlighter(highlight.Highlighter):
@@ -262,13 +291,14 @@ class WhooshInfrastructure():
         return True
 
 
-    def status_message(self, message, timeout=2000):
+    def status_message(self, message, timeout=1500):
         if not message:
             self.status_message_id = 0
             return
 
         self.status_message_id = current_milli_time()
-        threading.Thread(target=self.periodic_status_message, args=(message, self.status_message_id, timeout)).start()
+        threading.Thread(target=self.periodic_status_message,
+                         args=(message, self.status_message_id, timeout)).start()
 
 
     def periodic_status_message(self, message, message_id, timeout=1000):
@@ -465,6 +495,58 @@ class WhooshReset(WhooshIndex):
             self.window.status_message("WhooshSearch: Index is locked")
 
 
+class WhooshSave(WhooshInfrastructure):
+    def __init__(self, window, file_name):
+        WhooshInfrastructure.__init__(self, window)
+        self.file_name = file_name
+
+    def __call__(self):
+        if not self.is_project():
+            self.window.status_message("WhooshSearch indexes only projects")
+            return
+
+        if self.belongs_project(self.file_name):
+            self.reindex()
+
+    def belongs_project(self, file_name):
+        result = False
+
+        fdir, fname = os.path.split(file_name)
+
+        for folder in self.project_folders():
+            if fdir.startswith(folder):
+                result = True
+                fdir = fdir[len(folder):]
+                break
+
+        if not result:
+            return False
+
+        while fdir:
+            if self.dir_filter(fdir):
+                fdir = os.path.split(fdir)[0]
+            else:
+                return False
+
+        if not self.file_filter(file_name):
+            return False
+
+        return True
+
+    def reindex(self):
+        index_path = self.prepare_index_folder()
+        ix = index.open_dir(index_path)
+        try:
+            with ix.writer(limitmb=2048) as writer:
+                writer.delete_by_term('path', self.file_name)
+                add_doc_to_index(writer, self.file_name)
+                self.status_message("Whoosh Saving: %s" % os.path.split(self.file_name)[1])
+            self.status_message("")
+
+        except index.LockError:
+            self.window.status_message("WhooshSearch: Index is locked")
+
+
 class WhooshSearch(WhooshInfrastructure):
     def __init__(self, window, search_string):
         WhooshInfrastructure.__init__(self, window)
@@ -585,37 +667,13 @@ class WhooshTest(WhooshInfrastructure):
         WhooshInfrastructure.__init__(self, window)
 
     def __call__(self):
-        store_content = _settings.get("store_content")
-        print("artemn!")
-        print(store_content)
+        fname = "a/b"
+        fname = os.path.split(fname)[0]
+        fname = os.path.split(fname)[0]
 
-
-class WhooshSearchHistory():
-    def __init__(self, size):
-        self.size = size
-        self.pos = 0
-        self.history = []
-
-    def up(self):
-        self.pos += 1
-        if self.pos > len(self.history) - 1:
-            self.pos = len(self.history) - 1
-
-    def down(self):
-        self.pos -= 1
-        if self.pos < 0:
-            self.pos = 0
-
-    def get(self):
-        if not self.history:
-            return None
-        return self.history[self.pos]
-
-    def add(self, search_string):
-        self.history.append(search_string)
-        if len(self.history) > self.size:
-            self.history = self.history[1:]
-        self.pos = len(self.history) - 1
+        if fname:
+            print ("HER")
+        print(fname)
 
 
 def jump_find_result(file_view, line_number, search_string):
@@ -634,7 +692,7 @@ def jump_find_result(file_view, line_number, search_string):
 
 
 def refresh_whoosh_input(search_string):
-    sublime.active_window().run_command("whoosh_search_prompt", 
+    sublime.active_window().run_command("whoosh_search_prompt",
             {"search_string" : search_string})
 
 ###############################################################################
@@ -678,6 +736,12 @@ class WhooshResetCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         whoosh_reset = WhooshReset(sublime.active_window())
         sublime.set_timeout_async(whoosh_reset, 0)
+
+
+class WhooshEventListener(sublime_plugin.EventListener):
+    def on_post_save(self, view):
+        whoosh_save = WhooshSave(sublime.active_window(), view.file_name())
+        sublime.set_timeout_async(whoosh_save, 0)
 
 
 class WhooshViewAppendTextCommand(sublime_plugin.TextCommand):

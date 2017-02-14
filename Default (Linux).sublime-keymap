@@ -1,12 +1,14 @@
 [
-    { "keys": ["ctrl+shift+i"], "command": "whoosh_reset" },
+    { "keys": ["ctrl+shift+i"], "command": "whoosh_index" },
 
     { "keys": ["ctrl+shift+w"], "command": "whoosh_search_prompt" },
+
+    { "keys": ["ctrl+shift+x"], "command": "whoosh_reset" },
 
     { "keys": ["up"], "command": "whoosh_arrow_up", "context":
         [{"key": "panel", "operand": "input"}, {"key": "panel_has_focus"}]
     },
-    
+
     { "keys": ["down"], "command": "whoosh_arrow_down", "context":
         [{"key": "panel", "operand": "input"}, {"key": "panel_has_focus"}]
     }
