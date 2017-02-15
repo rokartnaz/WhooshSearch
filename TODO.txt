@@ -1,5 +1,4 @@
 1) add comments
-2) add OSX settings
 3) Prepare package
 
 Future
