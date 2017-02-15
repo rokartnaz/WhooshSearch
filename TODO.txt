@@ -1,6 +1,10 @@
-3) Create settings
-4) ctrl + shift + w -> open input with currently selected item
-5) ctrl + shift + w -> if there is no selected item open with history + ctrl+A
-5) Prepare package
-6) call hierarchy
-7) all errors by status_messages
+1) add comments
+2) add OSX settings
+3) Prepare package
+
+Future
+1) call hierarchy
+2) search in specific folders
+
+
+bugs:
