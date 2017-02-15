@@ -27,8 +27,6 @@ import multiprocessing
 
 
 _index_folder_tag = ".whoosh"
-_whoosh_search_settings = "WhooshSearch.sublime-settings"
-_settings = sublime.load_settings(_whoosh_search_settings)
 _whoosh_syntax_file = "Packages/WhooshSearch/WhooshFindResults.hidden-tmLanguage"
 _find_in_files_name = "Whoosh Find Results"
 
@@ -42,18 +40,23 @@ sys.argv = [""]
 
 current_milli_time = lambda: int(round(time.time() * 1000))
 
+# Whoosh settings
+_whoosh_search_settings = "WhooshSearch.sublime-settings"
+_settings = sublime.load_settings(_whoosh_search_settings)
+
+
 class WhooshSearchHistory():
     def __init__(self, size):
         self.size = size
         self.pos = 0
         self.history = []
 
-    def up(self):
+    def down(self):
         self.pos += 1
         if self.pos > len(self.history) - 1:
             self.pos = len(self.history) - 1
 
-    def down(self):
+    def up(self):
         self.pos -= 1
         if self.pos < 0:
             self.pos = 0
@@ -99,61 +102,6 @@ def CustomFancyAnalyzer(expression=r"\s+", stoplist=STOP_WORDS, minsize=2,
             | LowercaseFilter()
             | StopFilter(stoplist=stoplist, minsize=minsize)
             )
-
-
-def custom_analyzer():
-    return CustomFancyAnalyzer()
-
-def get_schema():
-    if _settings.get("store_content"):
-        return Schema (path=ID(unique=True, stored=True),
-                       time=STORED,
-                       content=TEXT(analyzer=custom_analyzer(), chars=True, stored=True))
-    else:
-        return Schema (path=ID(unique=True, stored=True),
-                       time=STORED,
-                       content=TEXT(analyzer=custom_analyzer(), chars=True))
-
-
-def is_hidden(filepath):
-    name = os.path.basename(os.path.abspath(filepath))
-    return name.startswith('.') or has_hidden_attribute(filepath)
-
-
-def has_hidden_attribute(filepath):
-    try:
-        attrs = ctypes.windll.kernel32.GetFileAttributesW(filepath)
-        assert attrs != -1
-        result = bool(attrs & 2)
-    except (AttributeError, AssertionError):
-        result = False
-    return result
-
-
-def is_path_contains(path, directory):
-    if directory in path.split(os.sep):
-        return True
-    return False
-
-
-def file_content(file_path):
-    with io.open(file_path, encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-    return content
-
-
-def is_binary_file(file_path):
-    textchars = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)) - {0x7f})
-    is_binary_string = lambda bytes: bool(bytes.translate(None, textchars))
-    with open(file_path, "rb") as f:
-        is_bin = is_binary_string(f.read(1024))
-    return is_bin
-
-
-def add_doc_to_index(writer, fname):
-    content = file_content(fname)
-    time = os.path.getmtime(fname)
-    writer.add_document(path=fname, content=content, time=time)
 
 
 class CustomHighlighter(highlight.Highlighter):
@@ -356,14 +304,46 @@ class WhooshInfrastructure():
         return False
 
 
+    def skip_file(self, fname):
+        skip_files = _settings.get("skip_files")
+
+        if not skip_files:
+            return False
+
+        if os.path.split(fname)[1] in skip_files:
+            return True
+
+        return False
+
+
+    def skip_file_ext(self, fname):
+        skip_exts = _settings.get("skip_file_extensions")
+
+        if not skip_exts:
+            return False
+
+        ext = os.path.splitext(fname)[1]
+
+        if ext[1:] in skip_exts:
+            return True
+
+        return False
+
+
     def file_filter(self, fname):
         if not os.path.isfile(fname):
             return False
 
-        if is_hidden(fname):
+        if self.is_hidden(fname):
             return False
 
-        if is_binary_file(fname):
+        if self.is_binary_file(fname):
+            return False
+
+        if self.skip_file(fname):
+            return False
+
+        if self.skip_file_ext(fname):
             return False
 
         # for test artemn
@@ -375,13 +355,57 @@ class WhooshInfrastructure():
 
 
     def dir_filter(self, dirpath):
-        if is_hidden(dirpath):
+        if self.is_hidden(dirpath):
             return False
 
         if self.skip_dir(dirpath):
             return False
 
         return True
+
+    def get_schema(self):
+        if _settings.get("store_content", False):
+            return Schema (path=ID(unique=True, stored=True),
+                           time=STORED,
+                           content=TEXT(analyzer=CustomFancyAnalyzer(), chars=True, stored=True))
+        else:
+            return Schema (path=ID(unique=True, stored=True),
+                           time=STORED,
+                           content=TEXT(analyzer=CustomFancyAnalyzer(), chars=True))
+
+
+    def is_hidden(self, filepath):
+        name = os.path.basename(os.path.abspath(filepath))
+        return name.startswith('.') or self.has_hidden_attribute(filepath)
+
+
+    def has_hidden_attribute(self, filepath):
+        try:
+            attrs = ctypes.windll.kernel32.GetFileAttributesW(filepath)
+            assert attrs != -1
+            result = bool(attrs & 2)
+        except (AttributeError, AssertionError):
+            result = False
+        return result
+
+    def file_content(self, file_path):
+        with io.open(file_path, encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return content
+
+
+    def is_binary_file(self, file_path):
+        textchars = bytearray({7,8,9,10,12,13,27} | set(range(0x20, 0x100)) - {0x7f})
+        is_binary_string = lambda bytes: bool(bytes.translate(None, textchars))
+        with open(file_path, "rb") as f:
+            is_bin = is_binary_string(f.read(1024))
+        return is_bin
+
+
+    def add_doc_to_index(self, writer, fname):
+        content = self.file_content(fname)
+        time = os.path.getmtime(fname)
+        writer.add_document(path=fname, content=content, time=time)
 
 
 class WhooshIndex(WhooshInfrastructure):
@@ -403,18 +427,20 @@ class WhooshIndex(WhooshInfrastructure):
                 self.incremental_index(index_path)
 
             stop = timeit.default_timer()
-            print(stop - start)
+            print("WhooshIndex finished [%f s]" % (stop - start))
         except index.LockError:
             self.window.status_message("WhooshSearch: Index is locked")
 
 
     # Create the index from scratch
     def new_index(self, index_path):
-        ix = index.create_in(index_path, schema=get_schema())
-        with ix.writer(limitmb=2048) as writer:
+        self.status_message("Whoosh Indexing...")
+
+        ix = index.create_in(index_path, schema=self.get_schema())
+        with ix.writer(limitmb=_settings.get("ram_limit_mb", 1024)) as writer:
             file_count = 0
             for fname in self.project_files():
-                add_doc_to_index(writer, fname)
+                self.add_doc_to_index(writer, fname)
                 file_count += 1
                 if file_count and file_count % 100 == 0:
                     self.status_message("Whoosh Indexing: %d" % file_count)
@@ -437,7 +463,7 @@ class WhooshIndex(WhooshInfrastructure):
         self.status_message("Whoosh Indexing...")
 
         with ix.searcher() as searcher:
-            with ix.writer(limitmb=2048) as writer:
+            with ix.writer(limitmb=_settings.get("ram_limit_mb", 1024)) as writer:
                 # Loop over the stored fields in the index
                 for fields in searcher.all_stored_fields():
                     indexed_path = fields['path']
@@ -465,7 +491,7 @@ class WhooshIndex(WhooshInfrastructure):
                     if path in to_index or path not in indexed_paths:
                         # This is either a file that's changed, or a new file
                         # that wasn't indexed before. So index it!
-                        add_doc_to_index(writer, path)
+                        self.add_doc_to_index(writer, path)
                         file_count += 1
                     if file_count and file_count % 100 == 0:
                         self.status_message("Whoosh Indexing: %d" % file_count)
@@ -490,7 +516,7 @@ class WhooshReset(WhooshIndex):
             self.new_index(index_path)
 
             stop = timeit.default_timer()
-            print(stop - start)
+            print("WhooshReset finished [%f s]" % (stop - start))
         except index.LockError:
             self.window.status_message("WhooshSearch: Index is locked")
 
@@ -536,12 +562,23 @@ class WhooshSave(WhooshInfrastructure):
     def reindex(self):
         index_path = self.prepare_index_folder()
         ix = index.open_dir(index_path)
+
         try:
-            with ix.writer(limitmb=2048) as writer:
-                writer.delete_by_term('path', self.file_name)
-                add_doc_to_index(writer, self.file_name)
-                self.status_message("Whoosh Saving: %s" % os.path.split(self.file_name)[1])
-            self.status_message("")
+            with ix.searcher() as searcher:
+                with ix.writer(limitmb=_settings.get("ram_limit_mb", 1024)) as writer:
+                    fields = searcher.document(path=self.file_name)
+
+                    if fields:
+                        if os.path.getmtime(self.file_name) == fields['time']:
+                            #nothing to reindex
+                            return
+
+                    writer.delete_by_term('path', self.file_name)
+                    self.add_doc_to_index(writer, self.file_name)
+
+                    self.status_message("Whoosh Saving: %s" % os.path.split(self.file_name)[1])
+
+                self.status_message("")
 
         except index.LockError:
             self.window.status_message("WhooshSearch: Index is locked")
@@ -557,7 +594,7 @@ class WhooshSearch(WhooshInfrastructure):
         start = timeit.default_timer()
 
         if not self.is_project():
-            self.window.status_message("WhooshSearch indexes only projects")
+            self.window.status_message("WhooshSearch searches only projects")
             return
 
         if not index.exists_in(self.index_folder()):
@@ -575,7 +612,7 @@ class WhooshSearch(WhooshInfrastructure):
             self.show_hits(hits)
 
         stop = timeit.default_timer()
-        print(stop - start)
+        print("WhooshSearch finished [%f s]" % (stop - start))
 
 
     def setup_hits(self, hits):
@@ -632,7 +669,9 @@ class WhooshSearch(WhooshInfrastructure):
     def display_footer(self, hit_count):
         regions = self.whoosh_view.find_all(self.search_string,
                                             sublime.LITERAL | sublime.IGNORECASE)
-        text = "\n%d matches across %d files\n" % (len(regions) - 1, hit_count)
+        reg_num = len(regions) - 1
+
+        text = "\n%d matches across %d files\n" % (reg_num if reg_num >= 0 else 0, hit_count)
         self.whoosh_view.run_command("whoosh_view_append_text",
                                      {"text" : text, "search_string" : None})
 
@@ -645,10 +684,10 @@ class WhooshSearch(WhooshInfrastructure):
         self.display_header(hits.searcher.doc_count())
 
         for hit in hits:
-            if _settings.get("store_content") and "content" in hit:
+            if _settings.get("store_content", False) and "content" in hit:
                 content = hit["content"]
             else:
-                content = file_content(hit["path"])
+                content = self.file_content(hit["path"])
 
             fragments = hit.highlights("content", text=content, top=1)
             self.display_filepath(hit["path"])
@@ -667,13 +706,9 @@ class WhooshTest(WhooshInfrastructure):
         WhooshInfrastructure.__init__(self, window)
 
     def __call__(self):
-        fname = "a/b"
-        fname = os.path.split(fname)[0]
-        fname = os.path.split(fname)[0]
+        f = "C:\\artem\\texttxt"
+        print(os.path.splitext(f)[1])
 
-        if fname:
-            print ("HER")
-        print(fname)
 
 
 def jump_find_result(file_view, line_number, search_string):
@@ -700,18 +735,26 @@ def refresh_whoosh_input(search_string):
 class WhooshIndexCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         whoosh_index = WhooshIndex(sublime.active_window())
-        sublime.set_timeout_async(whoosh_index, 0)
+        threading.Thread(target=whoosh_index).start()
 
 
 class WhooshSearchPromptCommand(sublime_plugin.WindowCommand):
     def run(self, search_string=None):
         global _search_history
+        curr_view = self.window.active_view()
+
         if not search_string:
-            search_string = _search_history.get()
+            sel = curr_view.sel()
+            if len(sel) == 0 or sel[0].a == sel[0].b:
+                search_string = _search_history.get()
+            else:
+                search_string = curr_view.substr(sel[0])
+
             if not search_string:
                 search_string = ""
 
         self.window.show_input_panel("Whoosh Search:", search_string, self.on_done, None, None)
+        self.window.run_command("select_all")
         pass
 
     def on_done(self, text):
@@ -729,19 +772,19 @@ class WhooshSearchCommand(sublime_plugin.WindowCommand):
             return
 
         whoosh_search = WhooshSearch(self.window, search_string)
-        sublime.set_timeout_async(whoosh_search, 0)
+        threading.Thread(target=whoosh_search).start()
 
 
 class WhooshResetCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         whoosh_reset = WhooshReset(sublime.active_window())
-        sublime.set_timeout_async(whoosh_reset, 0)
+        threading.Thread(target=whoosh_reset).start()
 
 
 class WhooshEventListener(sublime_plugin.EventListener):
     def on_post_save(self, view):
         whoosh_save = WhooshSave(sublime.active_window(), view.file_name())
-        sublime.set_timeout_async(whoosh_save, 0)
+        threading.Thread(target=whoosh_save).start()
 
 
 class WhooshViewAppendTextCommand(sublime_plugin.TextCommand):
@@ -824,7 +867,8 @@ class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
 
     def jump_file(self, file_name, line_number, search_string):
         file_view = sublime.active_window().open_file(file_name)
-        sublime.set_timeout_async(lambda: jump_find_result(file_view, line_number, search_string), 0)
+        threading.Thread(target=jump_find_result,
+                         args=(file_view, line_number, search_string)).start()
 
 
 class WhooshArrowUpCommand(sublime_plugin.TextCommand):
@@ -832,7 +876,9 @@ class WhooshArrowUpCommand(sublime_plugin.TextCommand):
         global _search_history
         _search_history.up()
         search_string = _search_history.get()
-        sublime.set_timeout_async(lambda: refresh_whoosh_input(search_string), 0)
+
+        threading.Thread(target=refresh_whoosh_input,
+                         args=(search_string,)).start()
 
 
 class WhooshArrowDownCommand(sublime_plugin.TextCommand):
@@ -840,7 +886,9 @@ class WhooshArrowDownCommand(sublime_plugin.TextCommand):
         global _search_history
         _search_history.down()
         search_string = _search_history.get()
-        sublime.set_timeout_async(lambda: refresh_whoosh_input(search_string), 0)
+
+        threading.Thread(target=refresh_whoosh_input,
+                         args=(search_string,)).start()
 
 
 class WhooshTestCommand(sublime_plugin.TextCommand):
@@ -848,7 +896,7 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
         start = timeit.default_timer()
 
         whoosh_test = WhooshTest(sublime.active_window())
-        sublime.set_timeout_async(whoosh_test, 0)
+        threading.Thread(target=whoosh_test).start()
 
         stop = timeit.default_timer()
         print(stop - start)
