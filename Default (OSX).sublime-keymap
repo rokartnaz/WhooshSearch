@@ -1,0 +1,15 @@
+[
+    { "keys": ["super+shift+i"], "command": "whoosh_index" },
+
+    { "keys": ["super+shift+w"], "command": "whoosh_search_prompt" },
+
+    { "keys": ["super+shift+x"], "command": "whoosh_reset" },
+
+    { "keys": ["up"], "command": "whoosh_arrow_up", "context":
+        [{"key": "panel", "operand": "input"}, {"key": "panel_has_focus"}]
+    },
+
+    { "keys": ["down"], "command": "whoosh_arrow_down", "context":
+        [{"key": "panel", "operand": "input"}, {"key": "panel_has_focus"}]
+    }
+]
