@@ -542,11 +542,12 @@ class WhooshSave(WhooshInfrastructure):
         for folder in self.project_folders():
             if fdir.startswith(folder):
                 result = True
-                fdir = fdir[len(folder):]
+                fdir = fdir[len(folder) + 1:]
                 break
 
         if not result:
             return False
+
 
         while fdir:
             if self.dir_filter(fdir):
@@ -571,6 +572,7 @@ class WhooshSave(WhooshInfrastructure):
                     if fields:
                         if os.path.getmtime(self.file_name) == fields['time']:
                             #nothing to reindex
+                            self.window.status_message("Whoosh Saving: nothing to save")
                             return
 
                     writer.delete_by_term('path', self.file_name)
