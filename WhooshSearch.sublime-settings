@@ -1,4 +1,5 @@
 {
+    // Choose folders to skip while indexing
     "skip_folders":
     [
         ".svn",
@@ -9,9 +10,24 @@
         "linux30",
         "linux50"
     ],
+
+    // Choose file extensions to skip while indexing
     "skip_file_extensions":
     [
         "txt"
     ],
-    "store_content" : true
+
+    // Choose file names (without path) to skip while indexing
+    "skip_files":
+    [
+        "TODO.txt"
+    ],
+
+    // Store files content in index. Allows not to reread files while searching.
+    // Indexing time and index space are increased if this option is set to true.
+    // Search time is reduced if this option is set to true.
+    "store_content" : true,
+
+    // Maximum amount of memory in Mb to use while indexing.
+    "ram_limit_mb" : 256
 }
