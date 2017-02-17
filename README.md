@@ -59,7 +59,7 @@
     // choose file names (without path) to skip while indexing
     "skip_files":
     [
-        "TODO.txt"
+        "WhooshSearch.py"
     ],
 
     // store files content in index. Allows not to reread files while searching
