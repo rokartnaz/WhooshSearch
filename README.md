@@ -29,14 +29,12 @@
 5. **Whoosh Find Results** - double click on search hit to jump into the file on specific line where hit was located.
 
 
-   Edit **Default (Windows).sublime-keymap** (Linux or OSX) to change hotkeys.
+   Edit **Default (Windows).sublime-keymap** (Linux or OSX) to change default plugin hotkeys.
 
    **Note:** WhooshSearch uses status bar (bottom side) to notify users about all its activities.
    
 
 ## Settings
-
-   Edit **WhooshSearch.sublime-settings** to change plugin configuration.
 
 ```javascript
 {
@@ -71,6 +69,8 @@
     "ram_limit_mb" : 256
 }
 ```
+
+   Edit **WhooshSearch.sublime-settings** to change the default plugin configuration.
 
    **Note:** a sublime project won't be reindexed automatically when plugin configuration is changed.
 
