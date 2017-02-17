@@ -1,17 +1,20 @@
 # WhooshSearch
 
    A plugin for [Sublime Text 3](http://www.sublimetext.com/)
+   
 
 ## About
 
    WhooshSearch is a ST3 plugin which allows to index sublime projects of any size and to search for any string of text within a project blazingly fast. Search results are presented as a standard ST3 "Find Results" view with an ability to jump into files containing search hits. 
 
    WhooshSearch uses [Whoosh Search Engine](https://whoosh.readthedocs.io/en/latest/index.html) code under the hood and does not require any additional software for its work. Just install the plugin and enjoy!
+   
 
 ## Installation
 
 1. Using [Package Control](https://packagecontrol.io/) - Recommended
 2. Download [WhooshSearch](https://github.com/rokartnaz/WhooshSearch) repository from github and put it under ST3 Packages folder.
+
 
 ## Usage
 
@@ -25,13 +28,15 @@
 
 5. **Whoosh Find Results** - double click on search hit to jump into the file on specific line where hit was located.
 
+
    Edit **Default (Windows).sublime-keymap** (Linux or OSX) to change hotkeys.
 
    **Note:** WhooshSearch uses status bar (bottom side) to notify users about all its activities.
+   
 
 ## Settings
 
-    Edit **WhooshSearch.sublime-settings** to change plugin configuration.
+   Edit **WhooshSearch.sublime-settings** to change plugin configuration.
 
 ```javascript
 {
