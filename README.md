@@ -5,7 +5,7 @@
 
 ## About
 
-   WhooshSearch is a ST3 plugin which allows to index sublime projects of any size and to search for any string of text within a project blazingly fast. Search results are presented as a standard ST3 "Find Results" view with an ability to jump into files containing search hits. 
+   WhooshSearch is a ST3 plugin which allows to index sublime projects of any size and to search for any string of text within a project blazingly fast. Search results are presented as a standard ST3 "Find Results" view with an ability to jump into files containing search hits. WhooshSearch plugin is extremely useful for working on huge projects or on codebases located remotely with high ping latency.
 
    WhooshSearch uses [Whoosh Search Engine](https://whoosh.readthedocs.io/en/latest/index.html) code under the hood and does not require any additional software for its work. Just install the plugin and enjoy!
    
@@ -50,22 +50,24 @@
         "linux50"
     ],
 
-    // choose file extensions to skip while indexing
+    // Choose file extensions to skip while indexing
     "skip_file_extensions":
     [
         "txt"
     ],
 
-    // choose file names (without path) to skip while indexing
+    // Choose file names (without path) to skip while indexing
     "skip_files":
     [
-        "WhooshSearch.py"
+        "TODO.txt"
     ],
 
-    // store files content in index. Allows not to reread files while searching
+    // Store files content in index. Allows not to reread files while searching.
+    // Indexing time and index space are increased if this option is set to true.
+    // Search time is reduced if this option is set to true.
     "store_content" : true,
 
-    // maximum amount of memory in Mb to use while indexing.
+    // Maximum amount of memory in Mb to use while indexing.
     "ram_limit_mb" : 256
 }
 ```
