@@ -1,12 +1,12 @@
 # WhooshSearch
 
-A plugin for [Sublime Text 3](http://www.sublimetext.com/)
+    A plugin for [Sublime Text 3](http://www.sublimetext.com/)
 
 ## About
 
-WhooshSearch is a ST3 plugin which allows to index sublime projects of any size and to search for any string of text within a project blazingly fast. Search results are presented as a standard ST3 "Find Results" view with an ability to jump into files containing search hits. 
+    WhooshSearch is a ST3 plugin which allows to index sublime projects of any size and to search for any string of text within a project blazingly fast. Search results are presented as a standard ST3 "Find Results" view with an ability to jump into files containing search hits. 
 
-WhooshSearch uses [Whoosh Search Engine](https://whoosh.readthedocs.io/en/latest/index.html) code under the hood and does not require any additional software for its work. Just install the plugin and enjoy!
+    WhooshSearch uses [Whoosh Search Engine](https://whoosh.readthedocs.io/en/latest/index.html) code under the hood and does not require any additional software for its work. Just install the plugin and enjoy!
 
 ## Installation
 
@@ -25,13 +25,13 @@ WhooshSearch uses [Whoosh Search Engine](https://whoosh.readthedocs.io/en/latest
 
 5. **Whoosh Find Results** - double click on search hit to jump into the file on specific line where hit was located.
 
-Edit _Default (<Platform>).sublime-keymap_ to change hotkeys.
+    Edit **Default (Windows).sublime-keymap** (Linux or OSX) to change hotkeys.
 
-**Note:** WhooshSearch uses status bar (bottom side) to notify users about all its activities.
+    **Note:** WhooshSearch uses status bar (bottom side) to notify users about all its activities.
 
 ## Settings
 
-Edit WhooshSearch.sublime-settings to change plugin configuration.
+    Edit **WhooshSearch.sublime-settings** to change plugin configuration.
 
 ```javascript
 {
@@ -67,5 +67,5 @@ Edit WhooshSearch.sublime-settings to change plugin configuration.
 }
 ```
 
-**Note:** a sublime project won't be reindexed automatically when plugin configuration is changed.
+    **Note:** a sublime project won't be reindexed automatically when plugin configuration is changed.
 
