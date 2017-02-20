@@ -1,9 +1,0 @@
-1) add comments
-3) Prepare package
-
-Future
-1) call hierarchy
-2) search in specific folders
-
-
-bugs:
