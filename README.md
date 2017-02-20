@@ -18,11 +18,11 @@
 
 ## Usage
 
-1. **[ctrl + shift + i]** / **[super + shift + x]** - build a project index from scratch if it does not exists or incremetally (only files that were changed from last index build will be reindexed).
+1. **["ctrl+w", "ctrl+i"]** / **["super+w", "super+i"]** - build a project index from scratch if it does not exists or incremetally (only files that were changed from last index build will be reindexed).
 
-2. **[ctrl + shift + x]** / **[super + shift + x]** - reset the index.
+2. **["ctrl+w", "ctrl+r"]** / **["super+w", "super+r"]** - reset the index.
 
-3. **[ctrl + shift + w]** / **[super + shift + w]** - open WhooshSearch input panel. Use arrows **UP** and **DOWN** to navigate on search history.
+3. **["ctrl+w", "ctrl+f"]** / **["super+w", "super+f"]** - open WhooshSearch input panel. Use arrows **UP** and **DOWN** to navigate on search history.
 
 4. **[ctrl + s]** / **[super + s]** - saving current file triggers reindexing of the file if it belongs to project.
 
