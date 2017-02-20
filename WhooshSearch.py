@@ -714,22 +714,6 @@ class WhooshTest(WhooshInfrastructure):
         print(os.path.splitext(f)[1])
 
 
-
-def jump_find_result(file_view, line_number, search_string):
-    while file_view.is_loading():
-        pass
-
-    pos = file_view.text_point(line_number - 1, 0)
-    file_view.show_at_center(pos)
-
-    file_view.sel().clear()
-    reg = file_view.find(search_string, pos, sublime.LITERAL | sublime.IGNORECASE)
-    if reg.a != -1:
-        file_view.sel().add(reg)
-    else:
-        file_view.sel().add(sublime.Region(pos, pos))
-
-
 def refresh_whoosh_input(search_string):
     sublime.active_window().run_command("whoosh_search_prompt",
             {"search_string" : search_string})
