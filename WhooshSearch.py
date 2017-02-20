@@ -638,6 +638,8 @@ class WhooshSearch(WhooshInfrastructure):
         self.whoosh_view.set_scratch(True)
         self.whoosh_view.set_name(_find_in_files_name)
         self.whoosh_view.set_syntax_file(_whoosh_syntax_file)
+        self.whoosh_view.settings().set('result_line_regex', '^ +([0-9]+):')
+        self.whoosh_view.settings().set('result_file_regex', '^([A-Za-z\\\\/<].*):$')
         return
 
 
@@ -803,74 +805,6 @@ class WhooshViewAppendTextCommand(sublime_plugin.TextCommand):
 class WhooshViewClearAllCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         self.view.erase(edit, sublime.Region(0, self.view.size()))
-
-
-class WhooshDoubleClickCommand(sublime_plugin.TextCommand):
-    def run(self, edit):
-        if self.view.name() == _find_in_files_name:
-            self.whoosh_jump()
-        else:
-            self.view.run_command("expand_selection", {"to": "word"})
-
-    def whoosh_jump(self):
-        click_region = self.view.sel()[0]
-        line_region = self.view.line(click_region)
-        line = self.view.substr(line_region)
-
-        if not line:
-            return
-
-        if line[0].isspace():
-            # find line number and go up until Path is found
-            line_number = self.line_number_from_match(line)
-            file_name = self.file_name_from_match(line_region)
-            search_string = self.get_search_string()
-            self.jump_file(file_name, line_number, search_string)
-        else:
-            if line.split()[0] == "Searching":
-                return
-            self.jump_file(line[:-1], 0, "")
-
-    def get_search_string(self):
-        line_region = self.view.line(sublime.Region(0, 0))
-        line = self.view.substr(line_region)
-        i = 0
-        while line[i] != '"':
-            i += 1
-
-        return line[i + 1 : len(line) - 1]
-
-    def line_number_from_match(self, line):
-        i = 0
-        while line[i].isspace():
-            i += 1
-
-        left = i
-
-        while line[i] != ':':
-            i += 1
-
-        right = i
-
-        return int(line[left : right])
-
-    def file_name_from_match(self, match_region):
-        current_row = self.view.rowcol(match_region.a)[0]
-        while True:
-            current_row -= 1
-            first_char = self.view.substr(self.view.text_point(current_row, 0))
-            if not first_char:
-                continue
-            if not first_char.isspace():
-                break
-
-        line_region = self.view.line(self.view.text_point(current_row, 0))
-        return self.view.substr(line_region)[:-1]
-
-    def jump_file(self, file_name, line_number, search_string):
-        file_view = sublime.active_window().open_file(file_name)
-        threading.Thread(target=jump_find_result,
-                         args=(file_view, line_number, search_string)).start()
 
 
 class WhooshArrowUpCommand(sublime_plugin.TextCommand):
