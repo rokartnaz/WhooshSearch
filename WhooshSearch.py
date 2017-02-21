@@ -634,18 +634,14 @@ class WhooshSearch(WhooshInfrastructure):
             self.whoosh_view.show(self.whoosh_view.size())
             return
         
-        curr_view = self.window.active_view()
         self.whoosh_view = self.window.new_file()
-
-        # curr_view used to pull over whoosh_view to apply result_line_regex (ST bug)
-        self.window.focus_view(curr_view)
-        self.whoosh_view.settings().set('result_line_regex', '^ +([0-9]+):')
-        self.whoosh_view.settings().set('result_file_regex', '^([A-Za-z\\\\/<].*):$')
-        self.window.focus_view(self.whoosh_view)
-
         self.whoosh_view.set_scratch(True)
         self.whoosh_view.set_name(_find_in_files_name)
-        self.whoosh_view.set_syntax_file(_whoosh_syntax_file)
+        self.whoosh_view.settings().set('result_line_regex', '^ +([0-9]+):')
+        self.whoosh_view.settings().set('result_file_regex', '^([A-Za-z\\\\/<].*):$')
+        self.whoosh_view.set_syntax_file(_whoosh_syntax_file)   
+        # need to focus view to start working with result_line_regex (ST bug)
+        self.window.focus_view(self.whoosh_view)
         return
 
 
