@@ -42,7 +42,12 @@ current_milli_time = lambda: int(round(time.time() * 1000))
 
 # Whoosh settings
 _whoosh_search_settings = "WhooshSearch.sublime-settings"
-_settings = sublime.load_settings(_whoosh_search_settings)
+_settings = None
+
+
+def plugin_loaded():
+    global _settings
+    _settings = sublime.load_settings(_whoosh_search_settings)
 
 
 class WhooshSearchHistory():
@@ -822,4 +827,3 @@ class WhooshTestCommand(sublime_plugin.TextCommand):
 
         stop = timeit.default_timer()
         print(stop - start)
-
