@@ -18,13 +18,13 @@
 
 ## Usage
 
-1. **["ctrl+alt+i"]** / **["super+alt+i"]** - build a project index from scratch if it does not exists or incremetally (only files that were changed from last index build will be reindexed).
+1. <kbd>ctrl+alt+i</kbd> / <kbd>super+alt+i</kbd> - build a project index from scratch if it does not exists or incremetally (only files that were changed from last index build will be reindexed).
 
-2. **["ctrl+alt+r"]** / **["super+alt+r"]** - reset the index.
+2. <kbd>ctrl+alt+x</kbd> / <kbd>super+alt+x</kbd> - reset the index.
 
-3. **["ctrl+alt+f"]** / **["super+alt+f"]** - open WhooshSearch input panel. Use arrows **UP** and **DOWN** to navigate on search history.
+3. <kbd>ctrl+alt+g</kbd> / <kbd>super+alt+g</kbd> - open WhooshSearch input panel. Use arrows **UP** and **DOWN** to navigate on search history.
 
-4. **[ctrl + s]** / **[super + s]** - saving current file triggers reindexing of the file if it belongs to project.
+4. <kbd>ctrl+s</kbd> / <kbd>super+s</kbd> - saving current file triggers reindexing of the file if it belongs to project.
 
 5. **Whoosh Find Results** - double click on search hit to jump into the file on specific line where hit was located.
 
